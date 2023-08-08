@@ -30,10 +30,8 @@ namespace InkML_Reader
 
 		private PixelFormat form = PixelFormats.Gray8;
 
-        /// <summary>
-        /// MainWindowを開く
-        /// </summary>
-        public MainWindow()
+		/**** MainWindowを開く ****/
+		public MainWindow()
 		{
 			InitializeComponent();
 
