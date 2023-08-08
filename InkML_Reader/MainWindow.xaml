@@ -27,7 +27,7 @@
                 <Separator/>
                     <MenuItem Name="Menu_Close" Header="閉じる" Click="MainWindow_Closing_Click"/>
                 </MenuItem>
-                <MenuItem Header="ヘルプ(_H)" Click="showHelpFile"/>
+                <!-- MenuItem Header="ヘルプ(_H)" Click="showHelpFile"/ -->
         </Menu>
         <StackPanel>
         </StackPanel>
