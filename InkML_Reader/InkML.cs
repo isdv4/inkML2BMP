@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Xml;
 using System.Linq;
+using System.Diagnostics;
+using System.Xml.Linq;
+using System.Collections.Generic;
 
 /**
  * @mainpage InkML
@@ -71,6 +74,14 @@ namespace InkML_Reader
         T
     };
 
+
+    enum InkML_TraceChannelPrefixPlicit
+    {
+        traceChannelPrefixPlicit           = 0,
+        traceChannelPrefixSingleDifference,
+        traceChannelPrefixSecondDifference,
+    }
+
     public class InkML
     {
         public const int MIN_PEN_WIDTH = 1;             // ペンの最小の太さ
@@ -90,7 +101,9 @@ namespace InkML_Reader
         public int y_offset;
 
         public double pen_mag;
-        public double pos_mag;
+        // public double pos_mag;
+
+        private bool bTraceDataRelative = true;   // inkMLの相対座標 false:絶対座標のみ true:相対座標可
 
         /**** 筆跡イメージ全体の幅/高さを取得する ****/
         private void setTraceWH(XmlNode childNode)
@@ -160,6 +173,7 @@ namespace InkML_Reader
         {
             InkML_Trace retTrace = new InkML_Trace();
             int dataCnt = 0;
+            int traceDataCnt = 0;
             retTrace.data = new InkML_Data[dataCnt];
 
             for (int attCnt = 0; attCnt < childNode.Attributes.Count; attCnt++)
@@ -169,6 +183,7 @@ namespace InkML_Reader
                 {
                     // PenUpのデータは無効
                     retTrace.tp = InkML_type.PEN_UP;
+                    traceDataCnt = 0;
                     break;
                 }
                 else if ((xmlAttr.Name == "type") && (xmlAttr.Value == "penDown"))
@@ -177,16 +192,169 @@ namespace InkML_Reader
                     retTrace.tp = InkML_type.PEN_DOWN;
                     // ","でデータを分割してTraceのデータを取り出す
                     string[] traceStr = (childNode.InnerText.Trim()).Split(',');
+                    double prvX = 0, prvY = 0, prvW = 0;
+                    double vx = 0, vy = 0, vw = 0;
                     foreach (String traceStr_div in traceStr)
                     {
                         InkML_Data data_temp;
-                        // " "でデータを分割してTrace内のの各データを取り出す
-                        string[] dataStr = traceStr_div.Split(' ');
+                        double tempX = 0.0, tempY = 0.0, tempW = 0.0;
 
-                        var tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
-                        var tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
-                        var tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
-                        tempW = (uint)Math.Floor(tempW / (this.pen_mag * 10));
+                        ★
+
+                        if (bTraceDataRelative)
+                        {
+                            char[] trimPrifixes = { '!', '\'', '\"' };
+
+                            if (true) 
+                            {
+                                if (traceDataCnt == 0)
+                                {
+                                    // " "でデータを分割してTrace内のの各データを取り出す
+                                    string[] dataStr = traceStr_div.Split(' ');
+                                    tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
+                                    tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
+                                    tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
+                                    vx = 0;
+                                    vy = 0;
+                                    vw = 0;
+                                }
+                                else if (traceDataCnt == 1)
+                                {
+                                    // 各要素の先頭に"'"があるのでスプリットコマンドで除去
+                                    // スプリットの影響で参照位置が1つズレる
+                                    //string[] dataStr = traceStr_div.Split('\'');
+                                    string[] dataStr = traceStr_div.Split(' ');
+                                    foreach(String dataChannelStr in dataStr){
+                                        String dataChannelStr2 = dataChannelStr.Trim(trimPrifixes);
+                                    }
+                                    
+                                    vx = double.Parse(dataStr[(int)InkML_traceFormat.X + 1]);
+                                    vy = double.Parse(dataStr[(int)InkML_traceFormat.Y + 1]);
+                                    vw = double.Parse(dataStr[(int)InkML_traceFormat.W + 1]);
+                                    tempX = prvX + vx;                                            // X: X座標
+                                    tempY = prvY + vy;                                            // Y: Y座標
+                                    tempW = prvW + vw;                                            // W: ペンの太さ
+                                }
+                                else if (traceDataCnt == 2)
+                                {
+                                    // 各要素の先頭に"""があるのでスプリットコマンドで除去
+                                    // スプリットの影響で参照位置が1つズレる
+                                    string[] dataStr = traceStr_div.Split('\"');
+                                    vx += double.Parse(dataStr[(int)InkML_traceFormat.X + 1]);
+                                    vy += double.Parse(dataStr[(int)InkML_traceFormat.Y + 1]);
+                                    vw += double.Parse(dataStr[(int)InkML_traceFormat.W + 1]);
+                                    tempX = prvX + vx;                                            // X: X座標
+                                    tempY = prvY + vy;                                            // Y: Y座標
+                                    tempW = prvW + vw;                                            // W: ペンの太さ
+                                }
+                                else
+                                {
+                                    List<int> spacePositions = new List<int>();
+                                    List<int> hyphenPositions = new List<int>();
+
+                                    List<string> dataStr = new List<string>();
+                                    int index = 0;
+                                    for (int i = 0; i < traceStr_div.Length; i++)
+                                    {
+                                        if (traceStr_div[i] == ' ')
+                                        {
+                                            spacePositions.Add(i);
+                                            dataStr.Add(traceStr_div.Substring(index, i - index));
+                                            index = i;
+                                        }
+                                        else if (traceStr_div[i] == '-' && i != 0)
+                                        {
+                                            hyphenPositions.Add(i);
+                                            dataStr.Add(traceStr_div.Substring(index, i - index));
+                                            index = i;
+                                        }
+
+                                    }
+                                    foreach (var hyphenPosItem in hyphenPositions)
+                                    {
+                                        // listA に listB の要素を追加
+                                        spacePositions.Add(hyphenPosItem);
+                                    }
+                                    spacePositions.Sort();
+                                    vx += double.Parse(dataStr[(int)InkML_traceFormat.X]);
+                                    vy += double.Parse(dataStr[(int)InkML_traceFormat.Y]);
+                                    vw += double.Parse(dataStr[(int)InkML_traceFormat.W]);
+                                    tempX = prvX + vx;                                            // X: X座標
+                                    tempY = prvY + vy;                                            // Y: Y座標
+                                    tempW = prvW + vw;                                            // W: ペンの太さ
+                                }
+
+                                tempW = (uint)Math.Floor(tempW / (this.pen_mag * 10));
+                            }
+                            else
+                            {
+                                string[] dataStr = traceStr_div.Split(' ');
+                                InkML_TraceChannelPrefixPlicit prefix;
+
+                                int channelIndex = 0;
+                                foreach (String dataChannelStr in dataStr)
+                                {
+                                    // 各チャンネルの先頭にprifixはあるか？                                    
+                                    prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
+
+                                    if (dataChannelStr.IndexOf("!") == 0)
+                                    {
+                                        // A preceding exclamation point (!) indicates an explicit value
+                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
+                                    }
+                                    if (dataChannelStr.IndexOf("\'") == 0)
+                                    {
+                                        // A single quote (') indicates a single difference
+                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSingleDifference;
+
+                                    }
+                                    if (dataChannelStr.IndexOf("\"") == 0)
+                                    {
+                                        // A double quote prefix (") indicates a second difference
+                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference;
+                                    }
+
+                                    // Prifixの除去
+                                    String dataChannelStr2 = "";
+                                    //char[] trimPrifixes = { '!', '\'', '\"' };
+                                    dataChannelStr2 = dataChannelStr.Trim(trimPrifixes);
+
+                                    if (channelIndex == (int)InkML_traceFormat.X)
+                                    {
+                                        tempX = double.Parse(dataChannelStr2);
+                                    }else if (channelIndex == (int)InkML_traceFormat.Y)
+                                    {
+                                        tempY = double.Parse(dataChannelStr2);
+                                    }else if (channelIndex == (int)InkML_traceFormat.W)
+                                    {
+                                        tempW = double.Parse(dataChannelStr2);
+                                    }
+
+
+
+                                    channelIndex++;
+                                }
+
+                                // tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
+                                // tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
+                                // tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
+                                // vx = 0;
+                                // vy = 0;
+                                // vw = 0;
+
+                            }
+                        }
+                        else
+                        {
+                            // 全てのデータは絶対値
+                            // " "でデータを分割してTrace内のの各データを取り出す
+                            string[] dataStr = traceStr_div.Split(' ');
+
+                            tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
+                            tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
+                            tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
+                            tempW = (uint)Math.Floor(tempW / (this.pen_mag * 10));
+                        }
 
                         // この時点では、ペンなのか消しゴムなのかは未確定
 
@@ -207,7 +375,11 @@ namespace InkML_Reader
                         data_temp.w = Math.Round( (tempW / (this.pen_mag + 10) ), MidpointRounding.AwayFromZero);       // ペン/消しゴムの太さ
                         */
 
+                        prvX = tempX;
+                        prvY = tempY;
+                        prvW = tempW;
                         dataCnt++;
+                        traceDataCnt++;
                         Array.Resize(ref retTrace.data, dataCnt);
                         retTrace.data[dataCnt - 1] = data_temp;
                     }
