@@ -66,20 +66,22 @@ namespace InkML_Reader
     enum InkML_traceFormat {
         X = 0,              // X: X座標
         Y,                  // Y: Y座標
-        F,
-        Z,
+        F,                  // F: Force
+        Z,                  // Z: Z座標
         OTx,                // Otx: X方向の傾き
         OTy,                // Oty: Y方向の傾き
         W,                  // W: ペンの太さ
-        T
+        T,                  // T: Time
+        maxSize
     };
 
 
     enum InkML_TraceChannelPrefixPlicit
     {
-        traceChannelPrefixPlicit           = 0,
-        traceChannelPrefixSingleDifference,
-        traceChannelPrefixSecondDifference,
+        traceChannelPrefixPlicit           = 0,                     // 明示的な値
+        traceChannelPrefixSingleDifference,                         // １次差分
+        traceChannelPrefixSecondDifference,                         // ２次差分
+        maxSize,
     }
 
     public class InkML
@@ -102,8 +104,6 @@ namespace InkML_Reader
 
         public double pen_mag;
         // public double pos_mag;
-
-        private bool bTraceDataRelative = true;   // inkMLの相対座標 false:絶対座標のみ true:相対座標可
 
         /**** 筆跡イメージ全体の幅/高さを取得する ****/
         private void setTraceWH(XmlNode childNode)
@@ -176,6 +176,10 @@ namespace InkML_Reader
             int traceDataCnt = 0;
             retTrace.data = new InkML_Data[dataCnt];
 
+            bool bDebugPrint = false;
+            int iDebugPrintNum = 4;
+            bool bDebugPrintRetTracce = false;
+
             for (int attCnt = 0; attCnt < childNode.Attributes.Count; attCnt++)
             {
                 XmlAttribute xmlAttr = childNode.Attributes[attCnt];
@@ -194,180 +198,140 @@ namespace InkML_Reader
                     string[] traceStr = (childNode.InnerText.Trim()).Split(',');
                     double prvX = 0, prvY = 0, prvW = 0;
                     double vx = 0, vy = 0, vw = 0;
+                    InkML_TraceChannelPrefixPlicit traceMode = InkML_TraceChannelPrefixPlicit.maxSize;
+                    InkML_TraceChannelPrefixPlicit lastTraceMode = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
+
+
                     foreach (String traceStr_div in traceStr)
                     {
                         InkML_Data data_temp;
+                        bool secondDifferenceSecondData = false;
+                        // データを分割してTrace内のの各データを取り出す
+
+                        if (bDebugPrint&& (0<iDebugPrintNum)) { iDebugPrintNum-=1; Debug.WriteLine(" Trace Data : " + traceStr_div); }
+
                         double tempX = 0.0, tempY = 0.0, tempW = 0.0;
 
-                        ★
+                        string[] dataStrSP = traceStr_div.Split(' ');
+                        string[] dataStrSQ = traceStr_div.Split('\'');
+                        string[] dataStrWQ = traceStr_div.Split('\"');
+                        string[] dataStrSP22 = null;
 
-                        if (bTraceDataRelative)
+                        traceMode = InkML_TraceChannelPrefixPlicit.maxSize;
+
+                        if ((lastTraceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit) &&
+                            (dataStrSP.Count() == (int)InkML_traceFormat.maxSize))
                         {
-                            char[] trimPrifixes = { '!', '\'', '\"' };
+                            // 明示的な
+                            traceMode = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
+                        }
 
-                            if (true) 
+                        if ((lastTraceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit) &&
+                            (dataStrSQ.Count() == ((int)InkML_traceFormat.maxSize) + 1))    // スプリットの関係で１つズレいる
+                        {
+                            // 差分
+                            traceMode = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSingleDifference;
+                        }
+
+                        if ((lastTraceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixSingleDifference) &&
+                            (dataStrWQ.Count() == ((int)InkML_traceFormat.maxSize) + 1))    // スプリットの関係１つズレいる
+                        {
+                            // ２次差分
+                            traceMode = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference; 
+                        }
+
+                        if (lastTraceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference)
+                        {
+                            // ２次差分の２回目以降のは、
+                            // マイナス記号の前のスペースが省かれる時がある。
+                            string dataInsertSP = "";
+                            int forCount = 0;
+
+                            foreach (char charData in traceStr_div)
                             {
-                                if (traceDataCnt == 0)
+                                if ((charData == '-' ) && (forCount != 0))
                                 {
-                                    // " "でデータを分割してTrace内のの各データを取り出す
-                                    string[] dataStr = traceStr_div.Split(' ');
-                                    tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
-                                    tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
-                                    tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
-                                    vx = 0;
-                                    vy = 0;
-                                    vw = 0;
+                                    // マイナス符号の前にスペースを挿入
+                                    // 先頭の時を除く
+                                    dataInsertSP = dataInsertSP + ' ';
                                 }
-                                else if (traceDataCnt == 1)
-                                {
-                                    // 各要素の先頭に"'"があるのでスプリットコマンドで除去
-                                    // スプリットの影響で参照位置が1つズレる
-                                    //string[] dataStr = traceStr_div.Split('\'');
-                                    string[] dataStr = traceStr_div.Split(' ');
-                                    foreach(String dataChannelStr in dataStr){
-                                        String dataChannelStr2 = dataChannelStr.Trim(trimPrifixes);
-                                    }
-                                    
-                                    vx = double.Parse(dataStr[(int)InkML_traceFormat.X + 1]);
-                                    vy = double.Parse(dataStr[(int)InkML_traceFormat.Y + 1]);
-                                    vw = double.Parse(dataStr[(int)InkML_traceFormat.W + 1]);
-                                    tempX = prvX + vx;                                            // X: X座標
-                                    tempY = prvY + vy;                                            // Y: Y座標
-                                    tempW = prvW + vw;                                            // W: ペンの太さ
-                                }
-                                else if (traceDataCnt == 2)
-                                {
-                                    // 各要素の先頭に"""があるのでスプリットコマンドで除去
-                                    // スプリットの影響で参照位置が1つズレる
-                                    string[] dataStr = traceStr_div.Split('\"');
-                                    vx += double.Parse(dataStr[(int)InkML_traceFormat.X + 1]);
-                                    vy += double.Parse(dataStr[(int)InkML_traceFormat.Y + 1]);
-                                    vw += double.Parse(dataStr[(int)InkML_traceFormat.W + 1]);
-                                    tempX = prvX + vx;                                            // X: X座標
-                                    tempY = prvY + vy;                                            // Y: Y座標
-                                    tempW = prvW + vw;                                            // W: ペンの太さ
-                                }
-                                else
-                                {
-                                    List<int> spacePositions = new List<int>();
-                                    List<int> hyphenPositions = new List<int>();
+                                dataInsertSP = dataInsertSP + charData;
 
-                                    List<string> dataStr = new List<string>();
-                                    int index = 0;
-                                    for (int i = 0; i < traceStr_div.Length; i++)
-                                    {
-                                        if (traceStr_div[i] == ' ')
-                                        {
-                                            spacePositions.Add(i);
-                                            dataStr.Add(traceStr_div.Substring(index, i - index));
-                                            index = i;
-                                        }
-                                        else if (traceStr_div[i] == '-' && i != 0)
-                                        {
-                                            hyphenPositions.Add(i);
-                                            dataStr.Add(traceStr_div.Substring(index, i - index));
-                                            index = i;
-                                        }
+                                forCount++;
+                            }
 
-                                    }
-                                    foreach (var hyphenPosItem in hyphenPositions)
-                                    {
-                                        // listA に listB の要素を追加
-                                        spacePositions.Add(hyphenPosItem);
-                                    }
-                                    spacePositions.Sort();
-                                    vx += double.Parse(dataStr[(int)InkML_traceFormat.X]);
-                                    vy += double.Parse(dataStr[(int)InkML_traceFormat.Y]);
-                                    vw += double.Parse(dataStr[(int)InkML_traceFormat.W]);
-                                    tempX = prvX + vx;                                            // X: X座標
-                                    tempY = prvY + vy;                                            // Y: Y座標
-                                    tempW = prvW + vw;                                            // W: ペンの太さ
-                                }
+                            // SPでスプリット
+                            dataStrSP22 = dataInsertSP.Split(' ');
 
-                                tempW = (uint)Math.Floor(tempW / (this.pen_mag * 10));
+                            if (dataStrSP22.Count() == ((int)InkML_traceFormat.maxSize))
+                            {
+                                //要素数が合っている
+                                traceMode = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference;
+                                secondDifferenceSecondData = true;
+                            }
+                            else 
+                            {
+                                Debug.WriteLine("Fail decode at (2nd difference and 2nd data).");
+                            }
+                        }
+
+                        if (traceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit)
+                        {
+                            // " "で区切られてデータ
+                            tempX = double.Parse(dataStrSP[(int)InkML_traceFormat.X]);      // X: X座標
+                            tempY = double.Parse(dataStrSP[(int)InkML_traceFormat.Y]);      // Y: Y座標
+                            tempW = double.Parse(dataStrSP[(int)InkML_traceFormat.W]);      // W: ペンの太さ
+                            vx = 0.0;
+                            vy = 0.0;
+                            vw = 0.0;
+                        }
+                        else if (traceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixSingleDifference)
+                        {
+                            // "'"を接頭に持つデータを"'"でスプリットしているため、位置がずれている
+                            vx = double.Parse(dataStrSQ[(int)InkML_traceFormat.X + 1]);
+                            vy = double.Parse(dataStrSQ[(int)InkML_traceFormat.Y + 1]);
+                            vw = double.Parse(dataStrSQ[(int)InkML_traceFormat.W + 1]);
+                            tempX = prvX + vx;                                            // X: X座標
+                            tempY = prvY + vy;                                            // Y: Y座標
+                            tempW = prvW + vw;                                            // W: ペンの太さ
+                        }
+                        else if (traceMode == InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference)
+                        {
+                            if (secondDifferenceSecondData == false)
+                            {
+                                // 2次差分の最初のデータ
+                                // """を接頭に持つデータを"""でスプリットしているため、位置がずれている
+                                vx += double.Parse(dataStrWQ[(int)InkML_traceFormat.X + 1]);
+                                vy += double.Parse(dataStrWQ[(int)InkML_traceFormat.Y + 1]);
+                                vw += double.Parse(dataStrWQ[(int)InkML_traceFormat.W + 1]);
                             }
                             else
                             {
-                                string[] dataStr = traceStr_div.Split(' ');
-                                InkML_TraceChannelPrefixPlicit prefix;
-
-                                int channelIndex = 0;
-                                foreach (String dataChannelStr in dataStr)
-                                {
-                                    // 各チャンネルの先頭にprifixはあるか？                                    
-                                    prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
-
-                                    if (dataChannelStr.IndexOf("!") == 0)
-                                    {
-                                        // A preceding exclamation point (!) indicates an explicit value
-                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixPlicit;
-                                    }
-                                    if (dataChannelStr.IndexOf("\'") == 0)
-                                    {
-                                        // A single quote (') indicates a single difference
-                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSingleDifference;
-
-                                    }
-                                    if (dataChannelStr.IndexOf("\"") == 0)
-                                    {
-                                        // A double quote prefix (") indicates a second difference
-                                        prefix = InkML_TraceChannelPrefixPlicit.traceChannelPrefixSecondDifference;
-                                    }
-
-                                    // Prifixの除去
-                                    String dataChannelStr2 = "";
-                                    //char[] trimPrifixes = { '!', '\'', '\"' };
-                                    dataChannelStr2 = dataChannelStr.Trim(trimPrifixes);
-
-                                    if (channelIndex == (int)InkML_traceFormat.X)
-                                    {
-                                        tempX = double.Parse(dataChannelStr2);
-                                    }else if (channelIndex == (int)InkML_traceFormat.Y)
-                                    {
-                                        tempY = double.Parse(dataChannelStr2);
-                                    }else if (channelIndex == (int)InkML_traceFormat.W)
-                                    {
-                                        tempW = double.Parse(dataChannelStr2);
-                                    }
-
-
-
-                                    channelIndex++;
-                                }
-
-                                // tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
-                                // tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
-                                // tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
-                                // vx = 0;
-                                // vy = 0;
-                                // vw = 0;
-
+                                // 2次差分の2回目以降のデータ
+                                vx += double.Parse(dataStrSP22[(int)InkML_traceFormat.X]);
+                                vy += double.Parse(dataStrSP22[(int)InkML_traceFormat.Y]);
+                                vw += double.Parse(dataStrSP22[(int)InkML_traceFormat.W]);
                             }
+                            tempX = prvX + vx;                                            // X: X座標
+                            tempY = prvY + vy;                                            // Y: Y座標
+                            tempW = prvW + vw;                                            // W: ペンの太さ
                         }
                         else
                         {
-                            // 全てのデータは絶対値
-                            // " "でデータを分割してTrace内のの各データを取り出す
-                            string[] dataStr = traceStr_div.Split(' ');
-
-                            tempX = double.Parse(dataStr[(int)InkML_traceFormat.X]);      // X: X座標
-                            tempY = double.Parse(dataStr[(int)InkML_traceFormat.Y]);      // Y: Y座標
-                            tempW = double.Parse(dataStr[(int)InkML_traceFormat.W]);      // W: ペンの太さ
-                            tempW = (uint)Math.Floor(tempW / (this.pen_mag * 10));
+                            Debug.WriteLine("Fali decode trace data.");
+                            break;
                         }
 
-                        // この時点では、ペンなのか消しゴムなのかは未確定
 
-                        // 座標補間用の座標を取得する（小数点以下は切捨て）
                         data_temp.plotX = (uint)Math.Floor(tempX / this.pen_mag);
-                        data_temp.plotY = (uint)((uint)(this.height_digi - tempY)/ this.pen_mag);
+                        data_temp.plotY = (uint)((uint)(this.height_digi - tempY) / this.pen_mag);
 
                         // Bitmap描画用の座標を取得する（小数点以下は切捨て）
                         // Y座標はオフセットの影響を受けない
                         data_temp.x = (uint)Math.Floor(tempX / this.pen_mag) - this.x_offset;
-                        data_temp.y = (uint)(this.height_paper - 1 - (uint)Math.Floor( (this.height_digi - tempY) / this.pen_mag) );
+                        data_temp.y = (uint)(this.height_paper - 1 - (uint)Math.Floor((this.height_digi - tempY) / this.pen_mag));
 
-                        data_temp.w = tempW;
+                        data_temp.w = (uint)Math.Floor(tempW / (this.pen_mag * 10));
                         /*
                         // 小数点第1位で四捨五入
                         data_temp.x = Math.Round( tempX / this.pen_mag ), MidpointRounding.AwayFromZero);
@@ -382,7 +346,9 @@ namespace InkML_Reader
                         traceDataCnt++;
                         Array.Resize(ref retTrace.data, dataCnt);
                         retTrace.data[dataCnt - 1] = data_temp;
-                    }
+
+                        lastTraceMode = traceMode;
+                    }// foreach
                 }
                 else if (xmlAttr.Name == "brushRef")
                 {
@@ -400,8 +366,33 @@ namespace InkML_Reader
                         default:
                             break;
                     }
+
+                    if (bDebugPrint) {
+                        string strDebugMsg = "";
+                        if (retTrace.brush == InkML_brushRef.PENCIL)
+                        {
+                            strDebugMsg = "Pen";
+                        }
+                        else if (retTrace.brush == InkML_brushRef.ERASER)
+                        {
+                            strDebugMsg = "Eraser";
+                        }
+                        
+                        Debug.WriteLine(" brushRef : " + xmlAttr.Value + " " + strDebugMsg); 
+                    }
                 }
                 else { }
+            }
+
+            if (bDebugPrintRetTracce &&
+                (0 < retTrace.data.Count()))
+            {
+                Debug.WriteLine("retTrace data : ");
+
+                foreach(InkML_Data dataTmp in retTrace.data)
+                {
+                    Debug.WriteLine(dataTmp.x + " " + dataTmp.y + " " + dataTmp.w + " " + dataTmp.plotX + " " + dataTmp.plotY);
+                }
             }
 
             return retTrace;
@@ -503,6 +494,7 @@ namespace InkML_Reader
         {
             InkML_Trace[] rawTraces = new InkML_Trace[traceCnt];    // InkMLデータを変換しないで格納する
             XmlDocument xmlDocument = new XmlDocument();            // XMLファイルのパーサ
+            const bool bDebugPrint = false;
 
             this.x_offset = x_offset;
             this.y_offset = y_offset;
@@ -515,6 +507,269 @@ namespace InkML_Reader
                 // InkMLファイルの内容の読込み
                 XmlElement elem = xmlDocument.DocumentElement;
 
+                bool bRootElemIsInk = false;            // Root Element は ink
+                bool bRootElemIsPaper = false;          // Root Element は paper
+
+                if (bDebugPrint) { Debug.WriteLine("Element is " + elem.Name + "(" + elem.LocalName + ")"); }
+
+                if(elem.LocalName == "ink")
+                {
+                    bRootElemIsInk = true;
+                }
+                if (elem.LocalName == "paper")
+                {
+                    bRootElemIsPaper = true;
+                }
+
+                if (elem.HasChildNodes == true)
+                {
+                    XmlNode childNode1 = elem.FirstChild;
+
+                    while (childNode1 != null)
+                    {
+                        if (bDebugPrint) { Debug.WriteLine(" Node is " + childNode1.Name + "(" + childNode1.LocalName + ")"); }
+
+                        if (bRootElemIsInk)
+                        {
+                            /* bRootElemIsInk */
+                            if (childNode1.LocalName == "annotation")
+                            {
+                                // 筆跡データ全体の幅/高さを取得
+                                setTraceWH(childNode1);
+                            }
+                            else
+                            if (childNode1.LocalName == "definitions")
+                            {
+                                for (int cnt = 0; cnt < childNode1.ChildNodes.Count; cnt++)
+                                {
+                                    XmlNode dataNode = childNode1.ChildNodes[cnt];
+                                    for (int chiCnt = 0; chiCnt < dataNode.Attributes.Count; chiCnt++)
+                                    {
+                                        XmlNode node = dataNode.ChildNodes[chiCnt];
+                                        if (node.LocalName == "timestamp")
+                                        {
+                                            // タイムスタンプの取得
+                                        }
+                                        else if (node.LocalName == "inkSource")
+                                        {
+                                            // インクソースの取得
+                                        }
+                                        else { }
+                                    }
+                                }
+                            }
+                            else
+                            if (childNode1.LocalName == "trace")
+                            {
+                                //  取得した筆跡データの追加
+                                InkML_Trace tr_temp = getTraceData(childNode1);
+                                if (tr_temp.tp == InkML_type.PEN_DOWN)
+                                {
+                                    traceCnt++;
+                                    Array.Resize(ref rawTraces, traceCnt);
+                                    rawTraces[traceCnt - 1] = tr_temp;
+                                }
+                            }
+                            /* End of bRootElemIsInk */
+                        }
+
+                        if (bRootElemIsPaper == true)
+                        {
+                            /* bRootElemIsPaper */
+                            XmlNode childNode2 = childNode1.FirstChild;
+
+                            while (childNode2 != null)
+                            {
+                                if (bDebugPrint) { Debug.WriteLine("  Node is " + childNode2.Name + "(" + childNode2.LocalName + ")"); }
+
+                                if (childNode2.LocalName == "annotation")
+                                {
+                                    // 筆跡データ全体の幅/高さを取得
+                                    // setTraceWH(childNode2);　paperの時は anotation から取得するのは廃止
+                                }
+                                else
+                                if (childNode2.LocalName == "definitions")
+                                {
+                                    XmlNode childNodeDef = childNode2.FirstChild;
+                                    while (childNodeDef != null)
+                                    {
+                                        if (bDebugPrint) { Debug.WriteLine("   Node is " + childNodeDef.Name + "(" + childNodeDef.LocalName + ")"); }
+
+                                        if (childNodeDef.LocalName == "canvas")
+                                        {
+                                            XmlNode childNodeCanvas = childNodeDef.FirstChild;
+                                            while (childNodeCanvas != null)
+                                            {
+                                                if (bDebugPrint) { Debug.WriteLine("    Node is " + childNodeCanvas.Name + "(" + childNodeCanvas.LocalName + ")"); }
+
+                                                if (childNodeCanvas.LocalName == "traceFormat")
+                                                {
+                                                    XmlNode childNodeTraceFormat = childNodeCanvas.FirstChild;
+                                                    while (childNodeTraceFormat != null)
+                                                    {
+                                                        if (bDebugPrint) { Debug.WriteLine("     Node is " + childNodeTraceFormat.Name + "(" + childNodeTraceFormat.LocalName + ")"); }
+
+                                                        bool bFinedX = false;
+                                                        bool bFinedY = false;
+
+                                                        for (int attCnt = 0; attCnt < childNodeTraceFormat.Attributes.Count; attCnt++)
+                                                        {
+                                                            XmlAttribute xmlAttr = childNodeTraceFormat.Attributes[attCnt];
+
+                                                            if ((xmlAttr.Name == "name") && (xmlAttr.Value == "X"))
+                                                            {
+                                                                bFinedX = true;
+                                                            }
+
+                                                            if ((xmlAttr.Name == "name") && (xmlAttr.Value == "Y"))
+                                                            {
+                                                                bFinedY = true;
+                                                            }
+                                                        }
+
+                                                        if (bFinedX || bFinedY)
+                                                        {
+                                                            for (int attCnt = 0; attCnt < childNodeTraceFormat.Attributes.Count; attCnt++)
+                                                            {
+                                                                XmlAttribute xmlAttr = childNodeTraceFormat.Attributes[attCnt];
+
+                                                                if (xmlAttr.Name == "max")
+                                                                {
+                                                                    if (bFinedX)
+                                                                    {
+                                                                        width_paper = long.Parse(xmlAttr.Value);
+                                                                        if (bDebugPrint) { Debug.WriteLine("     width_paper " + width_paper); }
+                                                                    }
+                                                                    if (bFinedY)
+                                                                    {
+                                                                        height_paper = long.Parse(xmlAttr.Value);
+                                                                        if (bDebugPrint) { Debug.WriteLine("     height_paper " + height_paper); }
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+
+                                                        childNodeTraceFormat = childNodeTraceFormat.NextSibling;
+                                                    }
+                                                }
+                                                childNodeCanvas = childNodeCanvas.NextSibling;
+                                            }
+                                        } 
+                                        else
+                                        if (childNodeDef.LocalName == "context")
+                                        {
+                                            XmlNode childNodeContext = childNodeDef.FirstChild;
+                                            while (childNodeContext != null)
+                                            {
+                                                if (bDebugPrint) { Debug.WriteLine("    Node is " + childNodeContext.Name + "(" + childNodeContext.LocalName + ")"); }
+
+                                                if (childNodeContext.LocalName == "inkSource")
+                                                {
+                                                    XmlNode childNodeInkSource = childNodeContext.FirstChild;
+
+                                                    while (childNodeInkSource != null)
+                                                    {
+                                                        if (bDebugPrint) { Debug.WriteLine("     Node is " + childNodeInkSource.Name + "(" + childNodeInkSource.LocalName + ")"); }
+
+                                                        if (childNodeInkSource.LocalName == "traceFormat")
+                                                        {
+                                                            XmlNode childNodeTraceFormat = childNodeInkSource.FirstChild;
+
+                                                            while (childNodeTraceFormat != null)
+                                                            {
+                                                                if (bDebugPrint) { Debug.WriteLine("      Node is " + childNodeTraceFormat.Name + "(" + childNodeTraceFormat.LocalName + ")"); }
+
+                                                                if (childNodeTraceFormat.LocalName == "channel")
+                                                                {
+                                                                    bool bFinedX = false;
+                                                                    bool bFinedY = false;
+
+                                                                    for (int attCnt = 0; attCnt < childNodeTraceFormat.Attributes.Count; attCnt++)
+                                                                    {
+                                                                        XmlAttribute xmlAttr = childNodeTraceFormat.Attributes[attCnt];
+
+                                                                        if ((xmlAttr.Name == "name") && (xmlAttr.Value == "X"))
+                                                                        {
+                                                                            bFinedX = true;
+                                                                        }
+
+                                                                        if ((xmlAttr.Name == "name") && (xmlAttr.Value == "Y"))
+                                                                        {
+                                                                            bFinedY = true;
+                                                                        }
+                                                                    }
+
+
+                                                                    if (bFinedX || bFinedY)
+                                                                    {
+                                                                        for (int attCnt = 0; attCnt < childNodeTraceFormat.Attributes.Count; attCnt++)
+                                                                        {
+                                                                            XmlAttribute xmlAttr = childNodeTraceFormat.Attributes[attCnt];
+
+                                                                            if (xmlAttr.Name == "max")
+                                                                            {
+                                                                                if (bFinedX)
+                                                                                {
+                                                                                    /* 単位と座標系は決め打ち */
+                                                                                    width_digi = (long)(float.Parse(xmlAttr.Value) * 100);
+                                                                                    if (bDebugPrint) { Debug.WriteLine("     width_digi " + width_digi); }
+                                                                                }
+                                                                                if (bFinedY)
+                                                                                {
+                                                                                    height_digi = (long)(float.Parse(xmlAttr.Value) * 100);
+                                                                                    if (bDebugPrint) { Debug.WriteLine("     height_digi " + height_digi); }
+                                                                                }
+                                                                            }
+                                                                        }
+                                                                    }
+                                                                }
+                                                                childNodeTraceFormat = childNodeTraceFormat.NextSibling;
+                                                            }
+                                                        }
+                                                        childNodeInkSource = childNodeInkSource.NextSibling;
+                                                    }
+                                                }
+                                                childNodeContext = childNodeContext.NextSibling;
+                                            }
+                                        }
+                                        childNodeDef = childNodeDef.NextSibling;
+                                    }
+                                }
+                                else
+                                if (childNode2.LocalName == "trace")
+                                {
+                                    if (0.0 < width_paper)
+                                    {
+                                        pen_mag = Math.Round((width_digi / width_paper), 2, MidpointRounding.AwayFromZero);           // 実際は、digi / 100 / paper * 1000、小数第二位で四捨五入
+                                        
+                                        if (bDebugPrint) { Debug.WriteLine("trace" + traceCnt); }
+
+                                        //  取得した筆跡データの追加
+                                        InkML_Trace tr_temp = getTraceData(childNode2);
+                                        if (tr_temp.tp == InkML_type.PEN_DOWN)
+                                        {
+                                            traceCnt++;
+                                            Array.Resize(ref rawTraces, traceCnt);
+                                            rawTraces[traceCnt - 1] = tr_temp;
+                                        }
+                                    }
+                                    else
+                                    {
+                                        Debug.WriteLine("ERROR pen_mag is 0.0");
+                                    }
+                                }
+
+                                childNode2 = childNode2.NextSibling;
+                            }// while
+
+
+
+                            /* End of bRootElemIsPaper */
+                        }
+                        childNode1 = childNode1.NextSibling;
+                    }
+                }
+
                 if (elem.HasChildNodes == true)
                 {
                     // InkMLファイルの階層的に各項目を読込む
@@ -522,52 +777,59 @@ namespace InkML_Reader
 
                     while (childNode != null)
                     {
-                        if (childNode.Name == "annotation")
-                        {
-                            // 筆跡データ全体の幅/高さを取得
-                            setTraceWH(childNode);
-                        }
-                        else if (childNode.Name == "inkml:definitions")
-                        {
-                            for (int cnt = 0; cnt < childNode.ChildNodes.Count; cnt++)
-                            {
-                                XmlNode dataNode = childNode.ChildNodes[cnt];
-                                for (int chiCnt = 0; chiCnt < dataNode.Attributes.Count; chiCnt++)
-                                {
-                                    XmlNode node = dataNode.ChildNodes[chiCnt];
-                                    if (node.Name == "inkml:timestamp")
-                                    {
-                                        // タイムスタンプの取得
-                                    }
-                                    else if (node.Name == "inkml:inkSource")
-                                    {
-                                        // インクソースの取得
-                                    }
-                                    else { }
-                                }
-                            }
-                        }
-                        else if (childNode.Name == "trace")
-                        {
-                            //  取得した筆跡データの追加
-                            InkML_Trace tr_temp = getTraceData(childNode);
-                            if (tr_temp.tp == InkML_type.PEN_DOWN)
-                            {
-                                traceCnt++;
-                                Array.Resize(ref rawTraces, traceCnt);
-                                rawTraces[traceCnt - 1] = tr_temp;
-                            }
-                        }
-                        else { }
+                        //if (childNode.Name == "annotation")
+                        //{
+                        //    // 筆跡データ全体の幅/高さを取得
+                        //    setTraceWH(childNode);
+                        //}
+                        //else
+                        //if (childNode.Name == "inkml:definitions")
+                        //{
+                        //    for (int cnt = 0; cnt < childNode.ChildNodes.Count; cnt++)
+                        //    {
+                        //        XmlNode dataNode = childNode.ChildNodes[cnt];
+                        //        for (int chiCnt = 0; chiCnt < dataNode.Attributes.Count; chiCnt++)
+                        //        {
+                        //            XmlNode node = dataNode.ChildNodes[chiCnt];
+                        //            if (node.Name == "inkml:timestamp")
+                        //            {
+                        //                // タイムスタンプの取得
+                        //            }
+                        //            else if (node.Name == "inkml:inkSource")
+                        //            {
+                        //                // インクソースの取得
+                        //            }
+                        //            else { }
+                        //        }
+                        //    }
+                        //}
+                        //else
+                        //if ((childNode.Name == "trace") ||
+                        //         (childNode.Name == "inkml:trace"))
+                        //{
+                        //    //  取得した筆跡データの追加
+                        //    InkML_Trace tr_temp = getTraceData(childNode);
+                        //    if (tr_temp.tp == InkML_type.PEN_DOWN)
+                        //    {
+                        //        traceCnt++;
+                        //        Array.Resize(ref rawTraces, traceCnt);
+                        //        rawTraces[traceCnt - 1] = tr_temp;
+                        //    }
+                        //}
+                        //else { }
                         childNode = childNode.NextSibling;
                     }
                 }
+
+
+
                 // ここでbitmap用の座標と太さに変換する
                 traces = convTraceData(rawTraces);
             }
             catch (System.Xml.XmlException)
             {
                 // InkMLファイルが不良の為、エラー
+                Debug.WriteLine("Fali inkML(xml) structure.");
             }
         }
     }
