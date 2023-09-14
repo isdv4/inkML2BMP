@@ -2,6 +2,7 @@
 using System.Drawing;
 using System.Windows.Media;
 using System.IO;
+using System.Windows.Forms;
 
 /**
  * @mainpage BMP
@@ -55,9 +56,34 @@ namespace InkML_Reader
             Array.Fill<byte>(bm_data, (byte)val);
         }
 
-    public BMP(String filename, PixelFormat form)
+        /* from file */
+        public BMP(String filename, PixelFormat form)
         {
             Bitmap bitmap = new Bitmap(filename);
+            bool bRet;
+
+            bRet = BMPtoPixFormat(bitmap, form);
+
+            // メモリの解放
+            bitmap.Dispose();
+
+        }
+
+        /* from resource */
+        public BMP(Stream bmpStream, PixelFormat form)
+        {
+            Bitmap bitmap = new Bitmap(bmpStream);
+            bool bRet;
+
+            bRet = BMPtoPixFormat(bitmap, form);
+
+            // メモリの解放
+            bitmap.Dispose();
+        }
+
+        private bool BMPtoPixFormat(Bitmap bitmap, PixelFormat form)
+        {
+            bool bRet = false;
 
             // ペン/消しゴムのbitmapはタブレット基準の方向の為、右上→右下を左上→右上方向に変換して取り出す
             bm_width = (uint)bitmap.Height;
@@ -74,42 +100,48 @@ namespace InkML_Reader
             }
 
             ImageConverter imgconv = new ImageConverter();
-            byte[] data = (byte[])imgconv.ConvertTo(new Bitmap(filename), typeof(byte[]));
+            byte[] data = (byte[])imgconv.ConvertTo(bitmap, typeof(byte[]));
 
             uint offset = data[BMP_OFFSET_POS];
             if (form == PixelFormats.BlackWhite)
             {
                 // 1pixel/1bitはその後の演算が複雑になるので対応しない
+                bRet = false;
             }
-            else if (form == PixelFormats.Gray8) {
+            else if (form == PixelFormats.Gray8)
+            {
                 bm_data = new byte[bm_width * bm_height];
-             
-                                for (uint y = 0; y < bm_height; y++)
-                                {
-                                    for (uint x = 0; x < bm_width; x++)
-                                    {
-                                        uint pos = offset + x * bm_stride + (bm_height - 1 - y) / 8;
-                                        byte bit = data[pos];
-                                        int shift = (int)((bm_width - 1 - y) % 8);        // 何ビット目に格納されているか
-                                        if ( ((0x80 >> shift) & bit) != 0x00)
-                                        {
-                                            bm_data[y * bm_height + x] = 0xff;          // 黒イメージ
-                                        }
-                                        else
-                                        {
-                                            bm_data[y * bm_height + x] = 0x00;          // 白イメージ
-                                        }
-                                    }
-                                }
-          
+
+                for (uint y = 0; y < bm_height; y++)
+                {
+                    for (uint x = 0; x < bm_width; x++)
+                    {
+                        uint pos = offset + x * bm_stride + (bm_height - 1 - y) / 8;
+                        byte bit = data[pos];
+                        int shift = (int)((bm_width - 1 - y) % 8);        // 何ビット目に格納されているか
+                        if (((0x80 >> shift) & bit) != 0x00)
+                        {
+                            bm_data[y * bm_height + x] = 0xff;          // 黒イメージ
+                        }
+                        else
+                        {
+                            bm_data[y * bm_height + x] = 0x00;          // 白イメージ
+                        }
+                    }
+                }
 
                 // strideを元のbitmapのstrideの意味で使っていたので、変換後（1pixcel/1Byte）のstrideに直す
                 bm_stride = bm_width;
-            }
-            else { /* ### エラー ### */ }
 
-            // メモリの解放
-            bitmap.Dispose();
+                bRet = true;
+            }
+            else {
+                /* ### エラー ### */
+                bRet = false;
+            }
+
+            return bRet;
         }
+
     }
 }
