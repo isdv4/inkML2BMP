@@ -12,7 +12,9 @@ using Excel = Microsoft.Office.Interop.Excel;
 //using Microsoft.Office.Interop.Excel;
 using System.Runtime.InteropServices;
 using System.Diagnostics;
-
+//using System.Windows.Shapes;
+//using System.Reflection;
+//using System.Drawing;
 
 namespace InkML_Reader
 {
@@ -293,14 +295,36 @@ namespace InkML_Reader
 				// ここで、ウインドウサイズ、最大ステップ数、筆跡データを取得する
 				InkML ink = new InkML(Txb_FilePath.Text, x_offset, y_offset);
 
+				bool bRequestErrorReturn = false;
+				string errorMsg = "";
+
 				if (ink.traceCnt == 0)
 				{
-					// InkMLファイル読込みエラー
-					MessageBox.Show("筆跡ファイルを読込めませんでした。" + "\nファイルの内容を確認して下さい。");
-					return;
+					errorMsg += "Trace data is zero.\n";
+                    bRequestErrorReturn = true;
 				}
 
-				// ペン/消しゴムデータの取得
+                if ((ink.width_paper == 0.0) || (ink.height_paper == 0.0))
+                {
+                    errorMsg += "Not found paper size.\n";
+                    bRequestErrorReturn = true;
+                }
+
+                if ((ink.width_digi == 0.0) || (ink.height_digi == 0.0))
+                {
+                    errorMsg += "Not found digi size.\n";
+                    bRequestErrorReturn = true;
+                }
+
+				if (bRequestErrorReturn)
+				{
+                    MessageBox.Show(errorMsg + "筆跡ファイルを読込めませんでした。" + "\nファイルの内容を確認して下さい。");
+                    return;
+				}
+
+                // ペン/消しゴムデータの取得
+#if false
+				// ファイルを開く
 				var pen_folder = ConfigurationManager.AppSettings["pen_folder"];					// ペンデータ格納フォルダ
 				var eraser_folder = ConfigurationManager.AppSettings["eraser_folder"];				// 消しゴムデータ格納フォルダ
 
@@ -319,10 +343,57 @@ namespace InkML_Reader
 					MessageBox.Show("消しゴムデータを読込めませんでした。" + "\nInkMLファイルの復元を中止します。");
 					return;
 				}
+#else
+                // リソースを開く
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
 
-				// サブウインドウ
-				// 生成
-				sw = new SubWindow(Txb_FilePath.Text, ink, pens, erasers, x_offset, y_offset, initial_draw_rate);
+                // ペンデータの取得
+                BMP[] pens = new BMP[MAX_PEN_WIDTH + 1];
+
+				// リソースの検索
+                foreach (var name in assembly.GetManifestResourceNames())
+                {
+					if (name.StartsWith("P") && name.EndsWith("pix.bmp"))
+					{
+                        // 所定の文字列を満たしたとき
+                        //Debug.WriteLine($" Name: {name}");
+
+						Stream stream = assembly.GetManifestResourceStream(name);
+
+                        BMP bmp =
+							new BMP(stream, form);							// ペンデータのビットマップを取得
+                        pens[bmp.bm_width] = bmp;                           // ペンデータ群の太さ番目に代入する
+                    }
+                }
+                // 太さ1のペンはbitmapデータを持たないので直接作成する
+                if (pens[1] == null)
+                {
+                    pens[1] = new BMP(1, 0x00);
+
+                }
+
+                // 消しゴムデータの取得
+                BMP[] erasers = new BMP[MAX_ERASER_WIDTH / 2 + 1];      // 消しゴムの太さは偶数
+
+                // リソースの検索
+                foreach (var name in assembly.GetManifestResourceNames())
+                {
+                    if (name.StartsWith("E") && name.EndsWith("pix.bmp"))
+                    {
+                        // 所定の文字列を満たしたとき
+                        //Debug.WriteLine($" Name: {name}");
+
+                        Stream stream = assembly.GetManifestResourceStream(name);
+
+                        BMP bmp =
+                            new BMP(stream, form);                          // ペンデータのビットマップを取得
+                        erasers[bmp.bm_width / 2] = bmp;                    // ペンデータ群の太さ番目に代入する
+                    }
+                }
+#endif
+                // サブウインドウ
+                // 生成
+                sw = new SubWindow(Txb_FilePath.Text, ink, pens, erasers, x_offset, y_offset, initial_draw_rate);
 //				sw.Owner = this;        // メインウインドウを親、サブウインドウを子に設定する ⇒ 親ウインドウは前面に出せない
 
 				// 筆跡ステップ数（スライダ）の変更 & イメージの描画
