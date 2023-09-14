@@ -2,3 +2,6 @@
 .vs/
 InkML_Reader/bin/
 InkML_Reader/obj/
+InkML_Reader/Properties/
+*.suo
+*.bak
