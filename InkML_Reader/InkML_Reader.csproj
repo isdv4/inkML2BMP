@@ -1,10 +1,12 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net7.0-windows</TargetFramework>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <PublishSingleFile>true</PublishSingleFile>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
@@ -32,18 +34,52 @@
       <Lcid>0</Lcid>
       <Isolated>false</Isolated>
     </COMReference>
-    <COMReference Include="{bee4bfec-6683-3e67-9167-3c0cbc68f40a}">
-      <Guid>bee4bfec-6683-3e67-9167-3c0cbc68f40a</Guid>
-      <VersionMajor>2</VersionMajor>
-      <VersionMinor>4</VersionMinor>
-      <WrapperTool>tlbimp</WrapperTool>
-    </COMReference>
+
+    <EmbeddedResource Include="../PenImg/Pen/2pix.bmp" LogicalName="P2pix.bmp" Link="PenImg\2pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/3pix.bmp" LogicalName="P3pix.bmp" Link="PenImg\3pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/4pix.bmp" LogicalName="P4pix.bmp" Link="PenImg\4pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/5pix.bmp" LogicalName="P5pix.bmp" Link="PenImg\5pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/6pix.bmp" LogicalName="P6pix.bmp" Link="PenImg\6pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/7pix.bmp" LogicalName="P7pix.bmp" Link="PenImg\7pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/8pix.bmp" LogicalName="P8pix.bmp" Link="PenImg\8pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/9pix.bmp" LogicalName="P9pix.bmp" Link="PenImg\9pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/10pix.bmp" LogicalName="P10pix.bmp" Link="PenImg\10pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Pen/11pix.bmp" LogicalName="P11pix.bmp" Link="PenImg\11pix.bmp" />
+
+    <EmbeddedResource Include="../PenImg/Eraser/6pix.bmp" LogicalName="E6pix.bmp" Link="PenImg\6pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/8pix.bmp" LogicalName="E8pix.bmp" Link="PenImg\8pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/10pix.bmp" LogicalName="E10pix.bmp" Link="PenImg\10pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/12pix.bmp" LogicalName="E12pix.bmp" Link="PenImg\12pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/14pix.bmp" LogicalName="E14pix.bmp" Link="PenImg\14pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/16pix.bmp" LogicalName="E16pix.bmp" Link="PenImg\16pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/18pix.bmp" LogicalName="E18pix.bmp" Link="PenImg\18pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/20pix.bmp" LogicalName="E20pix.bmp" Link="PenImg\20pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/22pix.bmp" LogicalName="E22pix.bmp" Link="PenImg\22pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/24pix.bmp" LogicalName="E24pix.bmp" Link="PenImg\24pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/26pix.bmp" LogicalName="E26pix.bmp" Link="PenImg\26pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/28pix.bmp" LogicalName="E28pix.bmp" Link="PenImg\28pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/30pix.bmp" LogicalName="E30pix.bmp" Link="PenImg\30pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/32pix.bmp" LogicalName="E32pix.bmp" Link="PenImg\32pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/34pix.bmp" LogicalName="E34pix.bmp" Link="PenImg\34pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/36pix.bmp" LogicalName="E36pix.bmp" Link="PenImg\36pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/38pix.bmp" LogicalName="E38pix.bmp" Link="PenImg\38pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/40pix.bmp" LogicalName="E40pix.bmp" Link="PenImg\40pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/42pix.bmp" LogicalName="E42pix.bmp" Link="PenImg\42pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/44pix.bmp" LogicalName="E44pix.bmp" Link="PenImg\44pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/46pix.bmp" LogicalName="E46pix.bmp" Link="PenImg\46pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/48pix.bmp" LogicalName="E48pix.bmp" Link="PenImg\48pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/50pix.bmp" LogicalName="E50pix.bmp" Link="PenImg\50pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/52pix.bmp" LogicalName="E52pix.bmp" Link="PenImg\52pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/54pix.bmp" LogicalName="E54pix.bmp" Link="PenImg\54pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/56pix.bmp" LogicalName="E56pix.bmp" Link="PenImg\56pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/58pix.bmp" LogicalName="E58pix.bmp" Link="PenImg\58pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/60pix.bmp" LogicalName="E60pix.bmp" Link="PenImg\60pix.bmp" />
+    <EmbeddedResource Include="../PenImg/Eraser/62pix.bmp" LogicalName="E62pix.bmp" Link="PenImg\62pix.bmp" />
+
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="System.Configuration">
-      <HintPath>..\..\..\..\Program Files (x86)\Microsoft Visual Studio\2019\Community\Common7\IDE\Extensions\Microsoft\LiveShare\Agent\System.Configuration.dll</HintPath>
-    </Reference>
+    <Folder Include="PenImg\" />
   </ItemGroup>
 
 </Project>
